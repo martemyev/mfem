@@ -1006,7 +1006,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
          }
 }
 
-void SparseMatrix::EliminateRowCol(int rc, int d)
+void SparseMatrix::EliminateRowCol(int rc, int d, double diag_value)
 {
    int col;
 
@@ -1020,7 +1020,7 @@ void SparseMatrix::EliminateRowCol(int rc, int d)
          {
             if (d == 0)
             {
-               A[j] = 1.0;
+               A[j] = diag_value;
             }
          }
          else
@@ -1048,7 +1048,7 @@ void SparseMatrix::EliminateRowCol(int rc, int d)
          {
             if (d == 0)
             {
-               aux->Value = 1.0;
+               aux->Value = diag_value;
             }
          }
          else

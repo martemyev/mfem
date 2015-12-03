@@ -187,7 +187,8 @@ public:
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
-   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0);
+   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0,
+                             double diag_value = 1.0);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
@@ -196,7 +197,8 @@ public:
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, int d = 0);
+   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, int d = 0,
+                                     double diag_value = 1.0);
 
    void Update(FiniteElementSpace *nfes = NULL);
 

@@ -195,7 +195,7 @@ public:
    void EliminateRowColMultipleRHS(int rc, const Vector &sol,
                                    DenseMatrix &rhs, int d = 0);
 
-   void EliminateRowCol(int rc, int d = 0);
+   void EliminateRowCol(int rc, int d = 0, double diag_value = 1.0);
    // Same as above + save the eliminated entries in Ae so that
    // (*this) + Ae is the original matrix
    void EliminateRowCol(int rc, SparseMatrix &Ae, int d = 0);
