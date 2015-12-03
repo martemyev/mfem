@@ -32,10 +32,15 @@ if(BUILD_TYPE STREQUAL DEBUG OR BUILD_TYPE STREQUAL PDEBUG)
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
-endif
+endif()
 
 #-------------------------------------------------------------------------------
-# Parallel mode
+# MFEM_TIMER_TYPE
+#-------------------------------------------------------------------------------
+set(MFEM_TIMER_TYPE 2)
+
+#-------------------------------------------------------------------------------
+# MFEM_USE_MPI, HYPRE, METIS
 #-------------------------------------------------------------------------------
 if(BUILD_TYPE STREQUAL PDEBUG OR BUILD_TYPE STREQUAL PRELEASE)
   set(MFEM_USE_MPI ON)
@@ -67,18 +72,19 @@ endif()
 # Config file
 #-------------------------------------------------------------------------------
 configure_file(
-  "${PROJECT_SOURCE_DIR}/config.hpp.in"
+  "${PROJECT_SOURCE_DIR}/config/config.hpp.in_cmake"
   "${PROJECT_BINARY_DIR}/config.hpp")
+include_directories(${PROJECT_BINARY_DIR})
 
 #-------------------------------------------------------------------------------
 # Headers and sources
 #-------------------------------------------------------------------------------
 set(DIRS general linalg mesh fem)
-foreach(dir IN DIRS)
-  FILE(GLOB SOURCES "${PROJECT_SOURCE_DIR}/${dir}/*.cpp")
-  FILE(GLOB HEADERS "${PROJECT_SOURCE_DIR}/${dir}/*.hpp")
-  list(APPEND SRC_LIST SOURCES)
-  list(APPEND HDR_LIST HEADERS)
+foreach(dir IN LISTS DIRS)
+  FILE(GLOB SRC "${PROJECT_SOURCE_DIR}/${dir}/*.cpp")
+  FILE(GLOB HDR "${PROJECT_SOURCE_DIR}/${dir}/*.hpp")
+  list(APPEND SRC_LIST ${SRC})
+  list(APPEND HDR_LIST ${HDR})
 endforeach()
 
 #-------------------------------------------------------------------------------
@@ -99,7 +105,7 @@ endif()
 # Declaring the library
 #-------------------------------------------------------------------------------
 add_library(${PROJECT_NAME} ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(${PROJECT_NAME} mfem rt)
+target_link_libraries(${PROJECT_NAME} rt)
 if(MFEM_USE_MPI)
   target_link_libraries(${PROJECT_NAME} ${MPI_CXX_LIBRARIES} HYPRE metis)
 endif()
