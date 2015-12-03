@@ -12,7 +12,7 @@
 #ifndef MFEM_GEOM
 #define MFEM_GEOM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../linalg/densemat.hpp"
 #include "intrules.hpp"
 

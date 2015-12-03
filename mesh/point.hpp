@@ -12,7 +12,7 @@
 #ifndef MFEM_POINT
 #define MFEM_POINT
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "element.hpp"
 
 namespace mfem

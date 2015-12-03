@@ -12,7 +12,7 @@
 #ifndef MFEM_BILINEARFORM
 #define MFEM_BILINEARFORM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"

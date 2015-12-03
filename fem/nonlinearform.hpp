@@ -12,7 +12,7 @@
 #ifndef MFEM_NONLINEARFORM
 #define MFEM_NONLINEARFORM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 

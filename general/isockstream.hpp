@@ -12,7 +12,7 @@
 #ifndef MFEM_ISOCKSTREAM
 #define MFEM_ISOCKSTREAM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include <sstream>
 
 namespace mfem

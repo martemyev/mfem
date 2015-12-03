@@ -12,7 +12,7 @@
 #ifndef MFEM_FESPACE
 #define MFEM_FESPACE
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"

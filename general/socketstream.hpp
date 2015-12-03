@@ -12,7 +12,7 @@
 #ifndef MFEM_SOCKETSTREAM
 #define MFEM_SOCKETSTREAM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include <iostream>
 
 namespace mfem

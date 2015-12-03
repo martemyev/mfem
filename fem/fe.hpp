@@ -12,7 +12,7 @@
 #ifndef MFEM_FE
 #define MFEM_FE
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../general/array.hpp"
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"

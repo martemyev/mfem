@@ -12,7 +12,7 @@
 #ifndef MFEM_PGRIDFUNC
 #define MFEM_PGRIDFUNC
 
-#include "../config/config.hpp"
+#include "config.hpp"
 
 #ifdef MFEM_USE_MPI
 

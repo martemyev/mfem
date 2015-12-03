@@ -12,7 +12,7 @@
 #ifndef MFEM_BLOCKMATRIX
 #define MFEM_BLOCKMATRIX
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../general/array.hpp"
 #include "vector.hpp"
 #include "sparsemat.hpp"

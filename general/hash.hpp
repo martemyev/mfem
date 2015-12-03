@@ -12,7 +12,7 @@
 #ifndef MFEM_HASH
 #define MFEM_HASH
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "array.hpp"
 
 namespace mfem

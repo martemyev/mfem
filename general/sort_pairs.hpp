@@ -12,7 +12,7 @@
 #ifndef MFEM_SORT_PAIRS
 #define MFEM_SORT_PAIRS
 
-#include "../config/config.hpp"
+#include "config.hpp"
 
 namespace mfem
 {

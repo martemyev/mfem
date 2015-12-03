@@ -12,7 +12,7 @@
 #ifndef MFEM_HYPRE
 #define MFEM_HYPRE
 
-#include "../config/config.hpp"
+#include "config.hpp"
 
 #ifdef MFEM_USE_MPI
 

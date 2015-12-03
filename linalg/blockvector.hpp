@@ -12,7 +12,7 @@
 #ifndef MFEM_BLOCKVECTOR
 #define MFEM_BLOCKVECTOR
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../general/array.hpp"
 #include "vector.hpp"
 

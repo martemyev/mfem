@@ -12,7 +12,7 @@
 #ifndef MFEM_MESH
 #define MFEM_MESH
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../general/stable3d.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"

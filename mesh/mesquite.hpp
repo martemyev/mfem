@@ -12,7 +12,7 @@
 #ifndef MFEM_MESQUITE
 #define MFEM_MESQUITE
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include"mesh.hpp"
 
 #ifdef MFEM_USE_MESQUITE

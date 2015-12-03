@@ -12,7 +12,7 @@
 #ifndef MFEM_GRIDFUNC
 #define MFEM_GRIDFUNC
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include <limits>

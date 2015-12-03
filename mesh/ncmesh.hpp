@@ -12,7 +12,7 @@
 #ifndef MFEM_NCMESH
 #define MFEM_NCMESH
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "../general/hash.hpp"
 #include "../linalg/densemat.hpp"
 #include "element.hpp"

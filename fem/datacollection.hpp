@@ -12,7 +12,7 @@
 #ifndef MFEM_DATACOLLECTION
 #define MFEM_DATACOLLECTION
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "gridfunc.hpp"
 #include <string>
 #include <map>

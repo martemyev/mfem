@@ -12,7 +12,7 @@
 #ifndef MFEM_PLINEARFORM
 #define MFEM_PLINEARFORM
 
-#include "../config/config.hpp"
+#include "config.hpp"
 
 #ifdef MFEM_USE_MPI
 

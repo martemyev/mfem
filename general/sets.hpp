@@ -12,7 +12,7 @@
 #ifndef MFEM_SETS
 #define MFEM_SETS
 
-#include "../config/config.hpp"
+#include "config.hpp"
 #include "array.hpp"
 #include "table.hpp"
 
