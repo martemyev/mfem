@@ -15,23 +15,25 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 project(mfem CXX)
 message(STATUS "C++ compiler ID = ${CMAKE_CXX_COMPILER_ID}")
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  #set(MY_CXX_FLAGS "-Wall -Wextra -Wshadow -Weffc++ -ansi -pedantic -Werror")
-  set(MY_CXX_FLAGS "-Wall")
+  #set(AUX_CXX_FLAGS "-Wall -Wextra -Wshadow -Weffc++ -ansi -pedantic -Werror")
+  set(AUX_CXX_FLAGS "-std=c++0x -Wall")
 elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-  #set(MY_CXX_FLAGS "-Wall -Wextra -Wshadow -Weffc++ -pedantic -Werror")
-  set(MY_CXX_FLAGS "-Wall")
+  #set(AUX_CXX_FLAGS "-Wall -Wextra -Wshadow -Weffc++ -pedantic -Werror")
+  set(AUX_CXX_FLAGS "-Wall")
 else()
-  #set(MY_CXX_FLAGS "-Wall -pedantic -Werror")
-  set(MY_CXX_FLAGS "-Wall")
+  #set(AUX_CXX_FLAGS "-Wall -pedantic -Werror")
+  set(AUX_CXX_FLAGS "-Wall")
 endif()
 
 #-------------------------------------------------------------------------------
 # MFEM_DEBUG
 #-------------------------------------------------------------------------------
-if(BUILD_TYPE STREQUAL DEBUG OR BUILD_TYPE STREQUAL PDEBUG)
+if(BUILD_TYPE MATCHES "DEBUG") # DEBUG and PDEBUG go here
   set(MFEM_DEBUG ON)
-else()
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${AUX_CXX_FLAGS}")
+else() # RELEASE and PRELEASE go here
   set(MFEM_DEBUG OFF)
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${AUX_CXX_FLAGS}")
 endif()
 
 #-------------------------------------------------------------------------------
