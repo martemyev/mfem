@@ -654,6 +654,61 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DG form:
+ */
+class DGElasticityIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *lambda, *mu;
+   double gamma;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni; 
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+public:
+   DGElasticityIntegrator(double g)
+      : lambda(NULL), mu(NULL), gamma(g) { }
+   DGElasticityIntegrator(Coefficient &l, Coefficient &m, double g)
+      : lambda(&l), mu(&m), gamma(g) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the linear elasticity form:
+    a(u,v) = (lambda div(u), div(v)) + (2 mu e(u), e(v)),
+    where e(v) = (1/2) (grad(v) + grad(v)^T).
+    This is a 'Vector' integrator, i.e. defined for FE spaces
+    using multiple copies of a scalar FE space. */
+//class ElasticityIntegrator : public BilinearFormIntegrator
+//{
+//private:
+//   double q_lambda, q_mu;
+//   Coefficient *lambda, *mu;
+
+//#ifndef MFEM_THREAD_SAFE
+//   DenseMatrix dshape, Jinv, gshape, pelmat;
+//   Vector divshape;
+//#endif
+
+//public:
+//   ElasticityIntegrator(Coefficient &l, Coefficient &m)
+//   { lambda = &l; mu = &m; }
+   /** With this constructor lambda = q_l * m and mu = q_m * m;
+       if dim * q_l + 2 * q_m = 0 then trace(sigma) = 0. */
+//   ElasticityIntegrator(Coefficient &m, double q_l, double q_m)
+//   { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
+
+//   virtual void AssembleElementMatrix(const FiniteElement &,
+//                                      ElementTransformation &,
+//                                      DenseMatrix &);
+//};
+
+
+
 /** Integrator for the DPG form: < v, [w] > over all faces (the interface) where
     the trial variable v is defined on the interface and the test variable w is
     defined inside the elements, generally in a DG space. */
