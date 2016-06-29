@@ -216,10 +216,12 @@ endif()
 #-------------------------------------------------------------------------------
 # Installation
 #-------------------------------------------------------------------------------
-install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/${BUILD_TYPE}/lib)
-install(FILES ${PROJECT_SOURCE_DIR}/mfem.hpp DESTINATION ${CMAKE_INSTALL_PREFIX}/${BUILD_TYPE}/include)
+string(TOLOWER ${BUILD_TYPE} INSTALL_DIR)
+set(INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${INSTALL_DIR})
+install(TARGETS ${PROJECT_NAME} DESTINATION ${INSTALL_DIR}/lib)
+install(FILES ${PROJECT_SOURCE_DIR}/mfem.hpp DESTINATION ${INSTALL_DIR}/include)
 foreach(dir IN LISTS DIRS)
   file(GLOB HDR "${PROJECT_SOURCE_DIR}/${dir}/*.hpp")
-  install(FILES ${HDR} DESTINATION ${CMAKE_INSTALL_PREFIX}/${BUILD_TYPE}/include/${dir})
+  install(FILES ${HDR} DESTINATION ${INSTALL_DIR}/include/${dir})
 endforeach()
 
