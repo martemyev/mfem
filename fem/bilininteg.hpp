@@ -654,13 +654,24 @@ public:
                                    DenseMatrix &elmat);
 };
 
-/** Integrator for the DG form:
+/** Integrator for the DG form (taken from the PhD Thesis of Jonas De Basabe
+    High-Order Finite Element Methods for Seismic Wave Propagation, UT Austin,
+    2009, p. 23)
 
     - < { tau(u) }, [v] > + sigma < { tau(v) }, [u] >
     + kappa < { lambda + 2 mu } [u], [v] >,
 
     where tau(u) is traction, and for isotropic medium it's:
     tau_i(u) = stress_ij(u).n_j = lambda u_kk n_i + mu (u_ij + u_ji) n_j
+
+    In other words:
+    - < { stress(u).n }, [v] > + sigma < { stress(v).n }, [u] >
+    + kappa < { lambda + 2 mu } [u], [v] >
+
+    We know that
+    stress(u) = lambda div(u) + 2 mu strain(u)
+              = lambda div(u) + 2 mu 1/2 (grad(u) + (grad(u))^T)
+              = lambda div(u) + mu (grad(u) + (grad(u))^T)
 
     where lambda and mu are Lame coefficient (see ElasticityIntegrator),
     u, v are the trial and test spaces, respectively. The parameters sigma and
@@ -692,10 +703,10 @@ protected:
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
 public:
-   DGElasticityIntegrator(double g)
-      : lambda(NULL), mu(NULL), gamma(g) { }
-   DGElasticityIntegrator(Coefficient &l, Coefficient &m, double g)
-      : lambda(&l), mu(&m), gamma(g) { }
+   DGElasticityIntegrator(double s, double k)
+      : lambda(NULL), mu(NULL), sigma(s), kappa(k) { }
+   DGElasticityIntegrator(Coefficient &l, Coefficient &m, double s, double k)
+      : lambda(&l), mu(&m), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

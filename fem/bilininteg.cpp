@@ -2144,8 +2144,8 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim, ndof1, ndof2, ndofs;
-   bool gamma_is_nonzero = (gamma != 0.);
-   double w, wq = 0.0;
+   bool kappa_is_nonzero = (kappa != 0.);
+   double w, wq = 0., L, M;
 
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
@@ -2172,8 +2172,8 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
    ndofs = ndof1 + ndof2;
    elmat.SetSize(ndofs);
-   elmat = 0.0;
-   if (gamma_is_nonzero)
+   elmat = 0.;
+   if (kappa_is_nonzero)
    {
       jmat.SetSize(ndofs);
       jmat = 0.;
@@ -2195,8 +2195,12 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
-   // assemble: < {(Q \nabla u).n},[v] >      --> elmat
-   //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+   // assemble elmat:
+   // < { stress(u).n }, [v] > =
+   // < { (lambda div(u) + mu (grad(u) + (grad(u))^T)).n }, [v] >
+   // assemble jmat:
+   // kappa < { lambda + 2 mu } [u], [v] >
+
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -2221,23 +2225,13 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       {
          w /= 2;
       }
-      if (!MQ)
-      {
-         if (Q)
-         {
-            w *= Q->Eval(*Trans.Elem1, eip1);
-         }
-         ni.Set(w, nor);
-      }
-      else
-      {
-         nh.Set(w, nor);
-         MQ->Eval(mq, *Trans.Elem1, eip1);
-         mq.MultTranspose(nh, ni);
-      }
+      L = lambda->Eval(*Trans.Elem1, eip1);
+      M = mu->Eval(*Trans.Elem1, eip1);
+      ni.Set(w, nor);
+
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       adjJ.Mult(ni, nh);
-      if (gamma_is_nonzero)
+      if (kappa_is_nonzero)
       {
          wq = ni * nor;
       }
@@ -2266,20 +2260,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          el2.CalcDShape(eip2, dshape2);
          Trans.Elem2->SetIntPoint(&eip2);
          w = ip.weight/2/Trans.Elem2->Weight();
-         if (!MQ)
-         {
-            if (Q)
-            {
-               w *= Q->Eval(*Trans.Elem2, eip2);
-            }
-            ni.Set(w, nor);
-         }
-         else
-         {
-            nh.Set(w, nor);
-            MQ->Eval(mq, *Trans.Elem2, eip2);
-            mq.MultTranspose(nh, ni);
-         }
+         ni.Set(w, nor);
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
          adjJ.Mult(ni, nh);
          if (kappa_is_nonzero)
