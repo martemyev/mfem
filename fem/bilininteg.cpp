@@ -2197,7 +2197,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
    //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
-   for (int p = 0; p < ir->GetNPoints(); p++)
+   for (int p = 0; p < ir->GetNPoints(); ++p)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
       IntegrationPoint eip1, eip2;

@@ -655,12 +655,37 @@ public:
 };
 
 /** Integrator for the DG form:
+
+    - < { tau(u) }, [v] > + sigma < { tau(v) }, [u] >
+    + kappa < { lambda + 2 mu } [u], [v] >,
+
+    where tau(u) is traction, and for isotropic medium it's:
+    tau_i(u) = stress_ij(u).n_j = lambda u_kk n_i + mu (u_ij + u_ji) n_j
+
+    where lambda and mu are Lame coefficient (see ElasticityIntegrator),
+    u, v are the trial and test spaces, respectively. The parameters sigma and
+    kappa determine the DG method to be used (when this integrator is added to
+    the "broken" ElasticityIntegrator):
+
+    * sigma = 0, IIPG (Dawson, C., Sun, S., & Wheeler, M., 2004. Compatible
+    algorithms for coupled flow and transport, Computer Methods in Applied
+    Mechanics and Engineering, 193(23-26), 2565-2580.)
+    * sigma = -1, SIPG (Grote, M., Schneebeli, A., & Schotzau, D., 2006.
+    Discontinuous Galerkin Finite Element Method for the Wave Equation, SIAM
+    Journal on Numerical Analysis, 44(6), 2408-2431.)
+    * sigma = 1, NIPG (Riviere, B., Wheeler, M., & Girault, V., 2001. A Priori
+    Error Estimates for Finite Element Methods Based on Discontinuous
+    Approximation Spaces for Elliptic Problems, SIAM Journal on Numerical
+    Analysis, 39(3), 902-931.)
+
+    This is a 'Vector' integrator, i.e. defined for FE spaces
+    using multiple copies of a scalar FE space.
  */
 class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *lambda, *mu;
-   double gamma;
+   double sigma, kappa;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni; 
