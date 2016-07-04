@@ -669,14 +669,14 @@ public:
     + kappa < { lambda + 2 mu } [u], [v] >
 
     We know that
-    stress(u) = lambda div(u) + 2 mu strain(u)
-              = lambda div(u) + 2 mu 1/2 (grad(u) + (grad(u))^T)
-              = lambda div(u) + mu (grad(u) + (grad(u))^T)
+    stress(u) = lambda div(u) I + 2 mu strain(u)
+              = lambda div(u) I + 2 mu 1/2 (grad(u) + (grad(u))^T)
+              = lambda div(u) I + mu (grad(u) + (grad(u))^T)
 
-    where lambda and mu are Lame coefficient (see ElasticityIntegrator),
-    u, v are the trial and test spaces, respectively. The parameters sigma and
-    kappa determine the DG method to be used (when this integrator is added to
-    the "broken" ElasticityIntegrator):
+    where I is identity matrix, lambda and mu are Lame coefficient (see
+    ElasticityIntegrator), u, v are the trial and test spaces, respectively.
+    The parameters sigma and kappa determine the DG method to be used (when this
+    integrator is added to the "broken" ElasticityIntegrator):
 
     * sigma = 0, IIPG (Dawson, C., Sun, S., & Wheeler, M., 2004. Compatible
     algorithms for coupled flow and transport, Computer Methods in Applied
@@ -697,10 +697,6 @@ class DGElasticityIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *lambda, *mu;
    double sigma, kappa;
-
-   // these are not thread-safe!
-   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni; 
-   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
 public:
    DGElasticityIntegrator(double s, double k)

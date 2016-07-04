@@ -2143,36 +2143,43 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   int dim, ndof1, ndof2, ndofs;
-   bool kappa_is_nonzero = (kappa != 0.);
-   double w, wq = 0., L, M;
+   const int dim = el1.GetDim();
+   const int ndof1 = el1.GetDof();
 
-   dim = el1.GetDim();
-   ndof1 = el1.GetDof();
+   Vector nor(dim);
+   Vector nh(dim);
+   Vector ni(dim);
+   DenseMatrix adjJ(dim);
 
-   nor.SetSize(dim);
-   nh.SetSize(dim);
-   ni.SetSize(dim);
-   adjJ.SetSize(dim);
+   DenseMatrix shape1(ndof1, dim); // u on el1
+   DenseMatrix dshape1(ndof1, dim); // grad(u) on el1
+   Vector dshape1dn(ndof1); // grad(u).n on el1
+   Vector divshape1(ndof1); // div(u)I on el1 as a vector
+   Vector divshape1dn(ndof1); // div(u)I.n on el1
 
-   shape1.SetSize(ndof1);
-   dshape1.SetSize(ndof1, dim);
-   dshape1dn.SetSize(ndof1);
-   if (Trans.Elem2No >= 0)
+   Vector shape2; // u on el2 (if the face is interior)
+   DenseMatrix dshape2; // grad(u) on el2 (if the face is interior)
+   Vector dshape2dn; // grad(u).n on el2 (if the face is interior)
+   Vector divshape2; // div(u) on el2 (if the face is interior)
+   Vector divshape2dn; // div(u).n on el2 (if the face is interior)
+   const int ndof2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
+   if (ndof2)
    {
-      ndof2 = el2.GetDof();
       shape2.SetSize(ndof2);
       dshape2.SetSize(ndof2, dim);
       dshape2dn.SetSize(ndof2);
-   }
-   else
-   {
-      ndof2 = 0;
+      divshape2.SetSize(ndofs2);
+      divshape2dn.SetSize(ndofs2);
    }
 
-   ndofs = ndof1 + ndof2;
+   const int ndofs = ndof1 + ndof2;
    elmat.SetSize(ndofs);
    elmat = 0.;
+
+   const bool kappa_is_nonzero = (kappa != 0.);
+
+   // jmat corresponds to the term: kappa < { lambda + 2 mu } [u], [v] >
+   DenseMatrix jmat;
    if (kappa_is_nonzero)
    {
       jmat.SetSize(ndofs);
@@ -2183,58 +2190,47 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      int order;
-      if (ndof2)
-      {
-         order = 2*max(el1.GetOrder(), el2.GetOrder());
-      }
-      else
-      {
-         order = 2*el1.GetOrder();
-      }
+      const int order = (ndof2) ? 2*max(el1.GetOrder(), el2.GetOrder()) : 2*el1.GetOrder();
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
    // assemble elmat:
    // < { stress(u).n }, [v] > =
-   // < { (lambda div(u) + mu (grad(u) + (grad(u))^T)).n }, [v] >
-   // assemble jmat:
-   // kappa < { lambda + 2 mu } [u], [v] >
+   // < { (lambda div(u) + mu (grad(u) + (grad(u))^T)).n }, [v] > =
+   // < { lambda div(u).n + mu grad(u).n + mu (grad(u))^T).n }, [v] >
 
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-
+      IntegrationPoint eip1;
       Trans.Loc1.Transform(ip, eip1);
       Trans.Face->SetIntPoint(&ip);
-      if (dim == 1)
-      {
+      if (dim == 1) {
          nor(0) = 2*eip1.x - 1.0;
-      }
-      else
-      {
+      } else {
          CalcOrtho(Trans.Face->Jacobian(), nor);
       }
 
-      el1.CalcShape(eip1, shape1);
+      el1.CalcVShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
+
       Trans.Elem1->SetIntPoint(&eip1);
-      w = ip.weight/Trans.Elem1->Weight();
+      double w = ip.weight / Trans.Elem1->Weight();
       if (ndof2)
-      {
-         w /= 2;
-      }
-      L = lambda->Eval(*Trans.Elem1, eip1);
-      M = mu->Eval(*Trans.Elem1, eip1);
+         w /= 2.0;
+
+      const double L1 = lambda->Eval(*Trans.Elem1, eip1);
+      const double M1 = mu->Eval(*Trans.Elem1, eip1);
       ni.Set(w, nor);
 
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       adjJ.Mult(ni, nh);
+
       if (kappa_is_nonzero)
       {
          wq = ni * nor;
       }
+
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -2247,11 +2243,16 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
       dshape1.Mult(nh, dshape1dn);
-      for (int i = 0; i < ndof1; i++)
-         for (int j = 0; j < ndof1; j++)
-         {
-            elmat(i, j) += shape1(i) * dshape1dn(j);
+
+      for (int d = 0; d < dim; d++) {
+         for (int i = 0; i < ndof1; ++i) {
+            for (int j = 0; j < ndof1; ++j) {
+               elmat(ndof1*d + i, ndof1*d + j) +=
+                     (M1 * w) * shape1(i, d) * dshape1dn(j) +
+                     (M1 * w) * shape1(i, d) * dshape1dn(i);
+            }
          }
+      }
 
       if (ndof2)
       {
