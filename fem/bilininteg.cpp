@@ -2151,7 +2151,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    Vector ni(dim);
    DenseMatrix adjJ(dim);
 
-   DenseMatrix shape1(ndof1, dim); // u on el1
+   Vector shape1(ndof1); // u on el1
    DenseMatrix dshape1(ndof1, dim); // grad(u) on el1
    Vector dshape1dn(ndof1); // grad(u).n on el1
    Vector divshape1(ndof1); // div(u)I on el1 as a vector
@@ -2168,12 +2168,12 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       shape2.SetSize(ndof2);
       dshape2.SetSize(ndof2, dim);
       dshape2dn.SetSize(ndof2);
-      divshape2.SetSize(ndofs2);
-      divshape2dn.SetSize(ndofs2);
+      divshape2.SetSize(ndof2);
+      divshape2dn.SetSize(ndof2);
    }
 
    const int ndofs = ndof1 + ndof2;
-   elmat.SetSize(ndofs);
+   elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
    const bool kappa_is_nonzero = (kappa != 0.);
@@ -2182,7 +2182,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    DenseMatrix jmat;
    if (kappa_is_nonzero)
    {
-      jmat.SetSize(ndofs);
+      jmat.SetSize(dim*ndofs);
       jmat = 0.;
    }
 
@@ -2196,8 +2196,8 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
    // assemble elmat:
    // < { stress(u).n }, [v] > =
-   // < { (lambda div(u) + mu (grad(u) + (grad(u))^T)).n }, [v] > =
-   // < { lambda div(u).n + mu grad(u).n + mu (grad(u))^T).n }, [v] >
+   // < { (lambda div(u) I + mu (grad(u) + (grad(u))^T)).n }, [v] > =
+   // < { lambda (div(u) I).n + mu grad(u).n + mu (grad(u))^T).n }, [v] >
 
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
@@ -2211,13 +2211,13 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Face->Jacobian(), nor);
       }
 
-      el1.CalcVShape(eip1, shape1);
+      el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
 
       Trans.Elem1->SetIntPoint(&eip1);
       double w = ip.weight / Trans.Elem1->Weight();
       if (ndof2)
-         w /= 2.0;
+         w *= 0,5;
 
       const double L1 = lambda->Eval(*Trans.Elem1, eip1);
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
@@ -2248,8 +2248,9 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          for (int i = 0; i < ndof1; ++i) {
             for (int j = 0; j < ndof1; ++j) {
                elmat(ndof1*d + i, ndof1*d + j) +=
-                     (M1 * w) * shape1(i, d) * dshape1dn(j) +
-                     (M1 * w) * shape1(i, d) * dshape1dn(i);
+                     (L1 * w) * shape1(i) * divshape1dn(j) +
+                     (M1 * w) * shape1(i) * dshape1dn(j) +
+                     (M1 * w) * shape1(i) * dshape1dn(i);
             }
          }
       }
@@ -2260,7 +2261,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
          Trans.Elem2->SetIntPoint(&eip2);
-         w = ip.weight/2/Trans.Elem2->Weight();
+         w = 0.5 * ip.weight / Trans.Elem2->Weight();
          ni.Set(w, nor);
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
          adjJ.Mult(ni, nh);
@@ -2271,50 +2272,50 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
          dshape2.Mult(nh, dshape2dn);
 
-         for (int i = 0; i < ndof1; i++)
-            for (int j = 0; j < ndof2; j++)
-            {
-               elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
+         for (int d = 0; d < dim; ++d) {
+            for (int i = 0; i < ndof1; ++i) {
+               for (int j = 0; j < ndof2; ++j) {
+                  elmat(ndof1*d + i, ndof1*dim + ndof1*d + j) += shape1(i) * dshape2dn(j);
+               }
+            }
+            for (int i = 0; i < ndof2; ++i) {
+               for (int j = 0; j < ndof1; ++j) {
+                  elmat(ndof1*dim + ndof1*d + i, ndof1*d + j) -= shape2(i) * dshape1dn(j);
+               }
             }
 
-         for (int i = 0; i < ndof2; i++)
-            for (int j = 0; j < ndof1; j++)
-            {
-               elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
+            for (int i = 0; i < ndof2; ++i) {
+               for (int j = 0; j < ndof2; ++j) {
+                  elmat(ndof1*dim + ndof1*d + i, ndof1*dim + ndof1*d + j) -= shape2(i) * dshape2dn(j);
+               }
             }
-
-         for (int i = 0; i < ndof2; i++)
-            for (int j = 0; j < ndof2; j++)
-            {
-               elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
-            }
+         }
       }
 
       if (kappa_is_nonzero)
       {
          // only assemble the lower triangular part of jmat
          wq *= kappa;
-         for (int i = 0; i < ndof1; i++)
-         {
-            const double wsi = wq*shape1(i);
-            for (int j = 0; j <= i; j++)
-            {
-               jmat(i, j) += wsi * shape1(j);
+         for (int d = 0; d < dim; ++d) {
+            for (int i = 0; i < ndof1; ++i) {
+               const double wsi = wq*shape1(i);
+               for (int j = 0; j <= i; ++j) {
+                  jmat(ndof1*d + i, ndof1*d + j) += wsi * shape1(j);
+               }
             }
          }
          if (ndof2)
          {
-            for (int i = 0; i < ndof2; i++)
-            {
-               const int i2 = ndof1 + i;
-               const double wsi = wq*shape2(i);
-               for (int j = 0; j < ndof1; j++)
-               {
-                  jmat(i2, j) -= wsi * shape1(j);
+            for (int d = 0; d < dim; ++d) {
+               for (int i = 0; i < ndof2; ++i) {
+                  const int i2 = ndof1*dim + ndof1*d + i;
+                  const double wsi = wq*shape2(i);
+                  for (int j = 0; j < ndof1; ++j) {
+                     jmat(i2, ndof1*d + j) -= wsi * shape1(j);
+                  }
                }
-               for (int j = 0; j <= i; j++)
-               {
-                  jmat(i2, ndof1 + j) += wsi * shape2(j);
+               for (int j = 0; j <= i; ++j) {
+                  jmat(i2, ndof1*dim + ndof1*d + j) += wsi * shape2(j);
                }
             }
          }
