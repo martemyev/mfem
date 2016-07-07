@@ -2146,33 +2146,13 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    const int dim = el1.GetDim();
    const int ndof1 = el1.GetDof();
 
-   Vector nor(dim);
-   Vector nh(dim);
-   Vector ni(dim);
-   DenseMatrix adjJ(dim);
-
-   Vector shape1(ndof1); // u on el1
-   DenseMatrix dshape1(ndof1, dim); // grad(u) on el1
-   Vector dshape1dn(ndof1); // grad(u).n on el1
-   Vector divshape1(ndof1); // div(u)I on el1 as a vector
-   Vector divshape1dn(ndof1); // div(u)I.n on el1
-
-   Vector shape2; // u on el2 (if the face is interior)
-   DenseMatrix dshape2; // grad(u) on el2 (if the face is interior)
-   Vector dshape2dn; // grad(u).n on el2 (if the face is interior)
-   Vector divshape2; // div(u) on el2 (if the face is interior)
-   Vector divshape2dn; // div(u).n on el2 (if the face is interior)
    const int ndof2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
-   if (ndof2)
-   {
-      shape2.SetSize(ndof2);
-      dshape2.SetSize(ndof2, dim);
-      dshape2dn.SetSize(ndof2);
-      divshape2.SetSize(ndof2);
-      divshape2dn.SetSize(ndof2);
-   }
-
    const int ndofs = ndof1 + ndof2;
+
+   // Initially elmat corresponds to the term:
+   // < { (lambda div(u) I + mu (grad(u) + (grad(u))^T)).n }, [v] >
+   // But eventually, it's going to be:
+   // elmat := -elmat + sigma*elmat^t + jmat
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
@@ -2194,99 +2174,111 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
-   // assemble elmat:
-   // < { stress(u).n }, [v] > =
-   // < { (lambda div(u) I + mu (grad(u) + (grad(u))^T)).n }, [v] > =
-   // < { lambda (div(u) I).n + mu grad(u).n + mu (grad(u))^T).n }, [v] >
-
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
       IntegrationPoint eip1;
       Trans.Loc1.Transform(ip, eip1);
       Trans.Face->SetIntPoint(&ip);
+
+      Vector nor(dim); // normal vector (not unit)
       if (dim == 1) {
          nor(0) = 2*eip1.x - 1.0;
       } else {
          CalcOrtho(Trans.Face->Jacobian(), nor);
       }
 
+      // values of all scalar basis functions at the integration point
+      Vector shape1(ndof1);
       el1.CalcShape(eip1, shape1);
+
+      // values derivatives of all scalar basis functions at the integration point
+      DenseMatrix dshape1(ndof1, dim);
       el1.CalcDShape(eip1, dshape1);
 
+      // weight of the quadrature rule for numerical integration
       Trans.Elem1->SetIntPoint(&eip1);
-      double w = ip.weight / Trans.Elem1->Weight();
+      double w1 = ip.weight / Trans.Elem1->Weight();
       if (ndof2)
-         w *= 0,5;
+         w1 *= 0.5;
+
+      Vector ni(dim); // what is this for ?
+      ni.Set(w1, nor);
+
+      DenseMatrix adjJ(dim);
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+
+      Vector nh(dim); // unit normal vector ?
+      adjJ.Mult(ni, nh);
+
+      // Since the derivatives are computed with respect to the reference
+      // coordinate, they need to be transformed with J^{-T} where J is the
+      // Jacobian matrix
+      DenseMatrix JinvT(dim); // J^{-T}
+      CalcInverse(Trans.Elem1->Jacobian(), JinvT);
+      JinvT.Transpose();
+
+      DenseMatrix gshape1(ndof1, dim); // derivatives w.r.t. physical coordinates
+      Mult(dshape1, JinvT, gshape1);
+
+      Vector gshape1dn(ndof1); // grad(u).n
+      gshape1.Mult(nh, gshape1dn);
+
+      Vector divshape1(ndof1); // div(u)
+      Vector one(dim);
+      gshape1.Mult(one, divshape1);
 
       const double L1 = lambda->Eval(*Trans.Elem1, eip1);
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
-      ni.Set(w, nor);
 
-      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
-      adjJ.Mult(ni, nh);
-
-      if (kappa_is_nonzero)
-      {
-         wq = ni * nor;
-      }
-
-      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
-      // independent of Loc1 and always gives the size of element 1 in
-      // direction perpendicular to the face. Indeed, for linear transformation
-      //     |nor|=measure(face)/measure(ref. face),
-      //   det(J1)=measure(element)/measure(ref. element),
-      // and the ratios measure(ref. element)/measure(ref. face) are
-      // compatible for all element/face pairs.
-      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
-      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
-      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
-
-      dshape1.Mult(nh, dshape1dn);
-
-      for (int d = 0; d < dim; d++) {
+      for (int d = 0; d < dim; ++d) {
          for (int i = 0; i < ndof1; ++i) {
             for (int j = 0; j < ndof1; ++j) {
                elmat(ndof1*d + i, ndof1*d + j) +=
-                     (L1 * w) * shape1(i) * divshape1dn(j) +
-                     (M1 * w) * shape1(i) * dshape1dn(j) +
-                     (M1 * w) * shape1(i) * dshape1dn(i);
+                     ( (L1 * w1) * divshape1(i)*nh(d) +
+                       (M1 * w1) * gshape1dn(i) +
+                       (M1 * w1) * gshape1dn(j) ) * shape1(j);
             }
          }
       }
 
+      double wq = 0.0;
+      if (kappa_is_nonzero)
+         wq = ni * nor;
+
       if (ndof2)
       {
+         IntegrationPoint eip2;
          Trans.Loc2.Transform(ip, eip2);
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
          Trans.Elem2->SetIntPoint(&eip2);
-         w = 0.5 * ip.weight / Trans.Elem2->Weight();
-         ni.Set(w, nor);
+         const double w2 = 0.5 * ip.weight / Trans.Elem2->Weight();
+         const double L2 = lambda->Eval(*Trans.Elem2, eip2);
+         const double M2 = mu->Eval(*Trans.Elem2, eip2);
+         ni.Set(w2, nor);
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
          adjJ.Mult(ni, nh);
          if (kappa_is_nonzero)
-         {
             wq += ni * nor;
-         }
 
          dshape2.Mult(nh, dshape2dn);
 
          for (int d = 0; d < dim; ++d) {
             for (int i = 0; i < ndof1; ++i) {
                for (int j = 0; j < ndof2; ++j) {
-                  elmat(ndof1*d + i, ndof1*dim + ndof1*d + j) += shape1(i) * dshape2dn(j);
+                  elmat(ndof1*d + i, ndof1*dim + ndof2*d + j) += shape1(i) * dshape2dn(j);
                }
             }
             for (int i = 0; i < ndof2; ++i) {
                for (int j = 0; j < ndof1; ++j) {
-                  elmat(ndof1*dim + ndof1*d + i, ndof1*d + j) -= shape2(i) * dshape1dn(j);
+                  elmat(ndof1*dim + ndof2*d + i, ndof1*d + j) -= shape2(i) * dshape1dn(j);
                }
             }
 
             for (int i = 0; i < ndof2; ++i) {
                for (int j = 0; j < ndof2; ++j) {
-                  elmat(ndof1*dim + ndof1*d + i, ndof1*dim + ndof1*d + j) -= shape2(i) * dshape2dn(j);
+                  elmat(ndof1*dim + ndof2*d + i, ndof1*dim + ndof2*d + j) -= shape2(i) * dshape2dn(j);
                }
             }
          }
@@ -2308,14 +2300,14 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          {
             for (int d = 0; d < dim; ++d) {
                for (int i = 0; i < ndof2; ++i) {
-                  const int i2 = ndof1*dim + ndof1*d + i;
+                  const int i2 = ndof1*dim + ndof2*d + i;
                   const double wsi = wq*shape2(i);
                   for (int j = 0; j < ndof1; ++j) {
                      jmat(i2, ndof1*d + j) -= wsi * shape1(j);
                   }
                }
                for (int j = 0; j <= i; ++j) {
-                  jmat(i2, ndof1*dim + ndof1*d + j) += wsi * shape2(j);
+                  jmat(i2, ndof1*dim + ndof2*d + j) += wsi * shape2(j);
                }
             }
          }
