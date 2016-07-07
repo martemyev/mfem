@@ -708,6 +708,15 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+private:
+   void AssembleBoundaryFaceMatrix(const FiniteElement &el,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   void AssembleInteriorFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
 };
 
 /** Integrator for the linear elasticity form:

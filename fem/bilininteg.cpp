@@ -2143,22 +2143,40 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   const int dim = el1.GetDim();
-   const int ndof1 = el1.GetDof();
+   if (Trans.Elem2No >= 0)
+      AssembleInteriorFaceMatrix(el1, el2, Trans, elmat);
+   else
+      AssembleBoundaryFaceMatrix(el1, Trans, elmat);
+}
 
-   const int ndof2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
-   const int ndofs = ndof1 + ndof2;
+void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
+   const FiniteElement &el, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   const int dim = el.GetDim();
+   const int ndofs = el.GetDof();
 
    // Initially elmat corresponds to the term:
    // < { (lambda div(u) I + mu (grad(u) + (grad(u))^T)).n }, [v] >
    // But eventually, it's going to be:
    // elmat := -elmat + sigma*elmat^t + jmat
+
+   // For the boundary faces, the averages and jumps over the face F of the E
+   // element are defined this way:
+   // [u] = u_F  jump
+   // {u} = u_F  average
+   // Therefore, the computation of the elmat matrix follows this:
+   // elmat = \int_F (lambda div(u) I + mu (grad(u) + grad(u)^T).n.v
+
+
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
    const bool kappa_is_nonzero = (kappa != 0.);
 
-   // jmat corresponds to the term: kappa < { lambda + 2 mu } [u], [v] >
+   // jmat corresponds to the term: kappa < { lambda + 2 mu } [u], [v] >,
+   // which in case of the boundary face becomes:
+   // kappa \int_F (lambda + 2 mu) u v
    DenseMatrix jmat;
    if (kappa_is_nonzero)
    {
@@ -2177,67 +2195,53 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1;
-      Trans.Loc1.Transform(ip, eip1);
+      IntegrationPoint eip; // integration point in the reference space
+      Trans.Loc1.Transform(ip, eip);
       Trans.Face->SetIntPoint(&ip);
+      Trans.Elem1->SetIntPoint(&eip);
 
-      Vector nor(dim); // normal vector (not unit)
-      if (dim == 1) {
-         nor(0) = 2*eip1.x - 1.0;
-      } else {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
-      }
+      // values of all scalar basis functions for one component of u (which is a
+      // vector) at the integration point in the reference space
+      Vector shape(ndofs);
+      el.CalcShape(eip, shape);
 
-      // values of all scalar basis functions at the integration point
-      Vector shape1(ndof1);
-      el1.CalcShape(eip1, shape1);
-
-      // values derivatives of all scalar basis functions at the integration point
-      DenseMatrix dshape1(ndof1, dim);
-      el1.CalcDShape(eip1, dshape1);
+      // values of derivatives of all scalar basis functions for one component
+      // of u (which is a vector) at the integration point in the reference space
+      DenseMatrix dshape(ndofs, dim);
+      el.CalcDShape(eip, dshape);
 
       // weight of the quadrature rule for numerical integration
-      Trans.Elem1->SetIntPoint(&eip1);
-      double w1 = ip.weight / Trans.Elem1->Weight();
-      if (ndof2)
-         w1 *= 0.5;
+      const double w = ip.weight;
 
-      Vector ni(dim); // what is this for ?
-      ni.Set(w1, nor);
-
+      // using Jacobian matrix of transformation of coordinates
+      const double detJ = Trans.Elem1->Weight();
       DenseMatrix adjJ(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
 
-      Vector nh(dim); // unit normal vector ?
-      adjJ.Mult(ni, nh);
+      Vector nor(dim); // normal vector (not unit)
+      if (dim == 1)
+         nor(0) = 2*eip.x - 1.0;
+      else
+         CalcOrtho(Trans.Face->Jacobian(), nor);
 
-      // Since the derivatives are computed with respect to the reference
-      // coordinate, they need to be transformed with J^{-T} where J is the
-      // Jacobian matrix
-      DenseMatrix JinvT(dim); // J^{-T}
-      CalcInverse(Trans.Elem1->Jacobian(), JinvT);
-      JinvT.Transpose();
+      Vector nh(dim); // normal vector in reference space
+      adjJ.Mult(nor, nh);
+      nh /= detJ;
 
-      DenseMatrix gshape1(ndof1, dim); // derivatives w.r.t. physical coordinates
-      Mult(dshape1, JinvT, gshape1);
+      Vector div(ndofs); // div(u)
+      Vector ones(dim); ones = 1.0;
+      dshape.Mult(ones, div);
 
-      Vector gshape1dn(ndof1); // grad(u).n
-      gshape1.Mult(nh, gshape1dn);
-
-      Vector divshape1(ndof1); // div(u)
-      Vector one(dim);
-      gshape1.Mult(one, divshape1);
-
-      const double L1 = lambda->Eval(*Trans.Elem1, eip1);
-      const double M1 = mu->Eval(*Trans.Elem1, eip1);
+      const double L = lambda->Eval(*Trans.Elem1, eip1);
+      const double M = mu->Eval(*Trans.Elem1, eip1);
 
       for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndof1; ++i) {
-            for (int j = 0; j < ndof1; ++j) {
-               elmat(ndof1*d + i, ndof1*d + j) +=
-                     ( (L1 * w1) * divshape1(i)*nh(d) +
-                       (M1 * w1) * gshape1dn(i) +
-                       (M1 * w1) * gshape1dn(j) ) * shape1(j);
+         for (int i = 0; i < ndofs; ++i) {
+            for (int j = 0; j < ndofs; ++j) {
+               elmat(ndofs*d + i, ndofs*d + j) +=
+                     shape(i) * ( (L * w) * div(j)*nh(d) +
+                                  (M * w) * dshape(j,d)*nh(d) +
+                                  (M * w) * dshape(i,d)*nh(d) );
             }
          }
       }
@@ -2245,44 +2249,6 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       double wq = 0.0;
       if (kappa_is_nonzero)
          wq = ni * nor;
-
-      if (ndof2)
-      {
-         IntegrationPoint eip2;
-         Trans.Loc2.Transform(ip, eip2);
-         el2.CalcShape(eip2, shape2);
-         el2.CalcDShape(eip2, dshape2);
-         Trans.Elem2->SetIntPoint(&eip2);
-         const double w2 = 0.5 * ip.weight / Trans.Elem2->Weight();
-         const double L2 = lambda->Eval(*Trans.Elem2, eip2);
-         const double M2 = mu->Eval(*Trans.Elem2, eip2);
-         ni.Set(w2, nor);
-         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
-         adjJ.Mult(ni, nh);
-         if (kappa_is_nonzero)
-            wq += ni * nor;
-
-         dshape2.Mult(nh, dshape2dn);
-
-         for (int d = 0; d < dim; ++d) {
-            for (int i = 0; i < ndof1; ++i) {
-               for (int j = 0; j < ndof2; ++j) {
-                  elmat(ndof1*d + i, ndof1*dim + ndof2*d + j) += shape1(i) * dshape2dn(j);
-               }
-            }
-            for (int i = 0; i < ndof2; ++i) {
-               for (int j = 0; j < ndof1; ++j) {
-                  elmat(ndof1*dim + ndof2*d + i, ndof1*d + j) -= shape2(i) * dshape1dn(j);
-               }
-            }
-
-            for (int i = 0; i < ndof2; ++i) {
-               for (int j = 0; j < ndof2; ++j) {
-                  elmat(ndof1*dim + ndof2*d + i, ndof1*dim + ndof2*d + j) -= shape2(i) * dshape2dn(j);
-               }
-            }
-         }
-      }
 
       if (kappa_is_nonzero)
       {
