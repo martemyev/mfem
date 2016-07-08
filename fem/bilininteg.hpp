@@ -694,10 +694,6 @@ public:
  */
 class DGElasticityIntegrator : public BilinearFormIntegrator
 {
-protected:
-   Coefficient *lambda, *mu;
-   double sigma, kappa;
-
 public:
    DGElasticityIntegrator(double s, double k)
       : lambda(NULL), mu(NULL), sigma(s), kappa(k) { }
@@ -709,7 +705,10 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-private:
+protected:
+   Coefficient *lambda, *mu;
+   double sigma, kappa;
+
    void AssembleBoundaryFaceMatrix(const FiniteElement &el,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);

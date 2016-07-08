@@ -2161,34 +2161,26 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    // But eventually, it's going to be:
    // elmat := -elmat + sigma*elmat^t + jmat
 
-   // For the boundary faces, the averages and jumps over the face F of the E
+   // For the boundary faces, the averages and jumps over the face F of the
    // element are defined this way:
    // [u] = u_F  jump
    // {u} = u_F  average
    // Therefore, the computation of the elmat matrix follows this:
    // elmat = \int_F (lambda div(u) I + mu (grad(u) + grad(u)^T).n.v
-
-
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
-
-   const bool kappa_is_nonzero = (kappa != 0.);
 
    // jmat corresponds to the term: kappa < { lambda + 2 mu } [u], [v] >,
    // which in case of the boundary face becomes:
    // kappa \int_F (lambda + 2 mu) u v
-   DenseMatrix jmat;
-   if (kappa_is_nonzero)
-   {
-      jmat.SetSize(dim*ndofs);
-      jmat = 0.;
-   }
+   DenseMatrix jmat(dim*ndofs);
+   jmat = 0.;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      const int order = (ndof2) ? 2*max(el1.GetOrder(), el2.GetOrder()) : 2*el1.GetOrder();
+      const int order = 2 * el.GetOrder();
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
@@ -2205,10 +2197,25 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       Vector shape(ndofs);
       el.CalcShape(eip, shape);
 
+      // values of the vector basis functions approximating u at the integration
+      // point in the reference space
+      double vShape[dim*ndofs][dim];
+      for (int i = 0; i < ndofs; ++i)
+         for (int d = 0; d < dim; ++d)
+            vShape[dim*i + d][d] = shape(i);
+
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
       DenseMatrix dshape(ndofs, dim);
       el.CalcDShape(eip, dshape);
+
+      // values of derivatives of vector basis functions approximating u at the
+      // integration point in the reference space
+      double vDshape[dim*ndofs][dim][dim];
+      for (int i = 0; i < ndofs; ++i)
+         for (int d = 0; d < dim; ++d)
+            for (int p = 0; p < dim; ++p)
+               vDshape[dim*i + d][d][p] = dshape(i, p);
 
       // weight of the quadrature rule for numerical integration
       const double w = ip.weight;
@@ -2228,85 +2235,28 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       adjJ.Mult(nor, nh);
       nh /= detJ;
 
-      Vector div(ndofs); // div(u)
-      Vector ones(dim); ones = 1.0;
-      dshape.Mult(ones, div);
+      const double L = lambda->Eval(*Trans.Elem1, eip);
+      const double M = mu->Eval(*Trans.Elem1, eip);
 
-      const double L = lambda->Eval(*Trans.Elem1, eip1);
-      const double M = mu->Eval(*Trans.Elem1, eip1);
+      for (int i = 0; i < dim*ndofs; ++i)
+         for (int j = 0; j < dim*ndofs; ++j)
+            for (int d = 0; d < dim; ++d)
+               for (int p = 0; p < dim; ++p)
+                  elmat(i, j) += vShape[i][d] *
+                     ( L * w * vDshape[j][p][p] * nh(d) +
+                       M * w * vDshape[j][d][p] * nh(p) +
+                       M * w * vDshape[j][p][d] * nh(p) );
 
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndofs; ++i) {
-            for (int j = 0; j < ndofs; ++j) {
-               elmat(ndofs*d + i, ndofs*d + j) +=
-                     shape(i) * ( (L * w) * div(j)*nh(d) +
-                                  (M * w) * dshape(j,d)*nh(d) +
-                                  (M * w) * dshape(i,d)*nh(d) );
-            }
-         }
-      }
-
-      double wq = 0.0;
-      if (kappa_is_nonzero)
-         wq = ni * nor;
-
-      if (kappa_is_nonzero)
-      {
-         // only assemble the lower triangular part of jmat
-         wq *= kappa;
-         for (int d = 0; d < dim; ++d) {
-            for (int i = 0; i < ndof1; ++i) {
-               const double wsi = wq*shape1(i);
-               for (int j = 0; j <= i; ++j) {
-                  jmat(ndof1*d + i, ndof1*d + j) += wsi * shape1(j);
-               }
-            }
-         }
-         if (ndof2)
-         {
-            for (int d = 0; d < dim; ++d) {
-               for (int i = 0; i < ndof2; ++i) {
-                  const int i2 = ndof1*dim + ndof2*d + i;
-                  const double wsi = wq*shape2(i);
-                  for (int j = 0; j < ndof1; ++j) {
-                     jmat(i2, ndof1*d + j) -= wsi * shape1(j);
-                  }
-               }
-               for (int j = 0; j <= i; ++j) {
-                  jmat(i2, ndof1*dim + ndof2*d + j) += wsi * shape2(j);
-               }
-            }
-         }
-      }
+      for (int i = 0; i < dim*ndofs; ++i)
+         for (int j = 0; j < dim*ndofs; ++j)
+            for (int d = 0; d < dim; ++d)
+               jmat(i, j) += (L + 2.0*M) * w * vShape[i][d] * vShape[j][d];
    }
 
-   // elmat := -elmat + sigma*elmat^t + jmat
-   if (kappa_is_nonzero)
-   {
-      for (int i = 0; i < ndofs; i++)
-      {
-         for (int j = 0; j < i; j++)
-         {
-            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
-         }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
-      }
-   }
-   else
-   {
-      for (int i = 0; i < ndofs; i++)
-      {
-         for (int j = 0; j < i; j++)
-         {
-            double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - aij;
-            elmat(j,i) = sigma*aij - aji;
-         }
-         elmat(i,i) *= (sigma - 1.);
-      }
-   }
+   // elmat := -elmat + sigma*elmat^t + kappa*jmat
+   for (int i = 0; i < dim*ndofs; ++i)
+      for (int j = 0; j < dim*ndofs; ++j)
+         elmat(i, j) = -elmat(i, j) + sigma*elmat(j, i) + kappa*jmat(i, j);
 }
 
 void TraceJumpIntegrator::AssembleFaceMatrix(
