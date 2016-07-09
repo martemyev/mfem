@@ -2159,18 +2159,19 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    /**
      Initially elmat corresponds to the term:
      \f[
-     elmat = < { (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} }, [v] >
+       elmat = < { (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} }, [v] >
      \f]
      But eventually, it's going to be:
      elmat := -elmat + sigma*elmat^t + kappa*jmat
 
      For the boundary faces, the averages and jumps over the face F of the
      element are defined this way:
-     - [u] = u_F  jump
-     - {u} = u_F  average
+     - jump: [u] = u_F
+     - average {u} = u_F
+
      Therefore, the computation of the elmat matrix follows this:
      \f[
-     elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
+       elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
      \f]
    */
    elmat.SetSize(dim*ndofs);
@@ -2190,6 +2191,69 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       const int order = 2 * el.GetOrder();
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
+
+   /**
+     u and v are a linear combination of the vector basis functions \f$ \vec{\phi} \f$
+     that are copies of scalar basis functions \f$ \psi \f$. For example, in 2D:
+     \f[
+       \vec{\phi_0} = ( \psi_0, 0 ) \\
+       \vec{\phi_1} = ( 0, \psi_0 ) \\
+       \vec{\phi_2} = ( \psi_1, 0 ) \\
+       \vec{\phi_3} = ( 0, \psi_1 ) \\
+       \mbox{and so on}
+     \f]
+
+     Let's consider terms of the integrals over the boundary face separately.
+
+     First term
+     \f[
+       \int_F \lambda \nabla \cdot u I \cdot \vec{n} \cdot v =
+       \sum_{p}^{I_p} \lambda_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+     \f]
+     where \f$ I_p \f$ are integration points, \f$ w_p \f$ are weights of
+     numerical integration rules.
+     \f[
+       E_{ij} = \vec{\phi_i} \cdot \nabla \cdot \vec{\phi_j} I \cdot \vec{n} = |\mbox{in 2D}|
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} & 0 \\ 0 & \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_x \\ \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_y \end{matrix} \right)
+              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_d
+     \f]
+
+     Second term
+     \f[
+       \int_F \mu \nabla u \cdot \vec{n} \cdot v =
+       \sum_{p}^{I_p} \mu_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+     \f]
+     \f[
+       E_{ij} = \vec{\phi_i} \cdot \nabla \vec{\phi_j} \cdot \vec{n} = |\mbox{in 2D}|
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^x}{\partial y} \\ \frac{\partial \phi_j^y}{\partial x} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^x}{\partial r} n_r \\ \sum_r^D \frac{\partial \phi_j^y}{\partial r} n_r \end{matrix} \right)
+              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^d}{\partial r} n_r
+     \f]
+
+     Third term
+     \f[
+       \int_F \mu \nabla u^T \cdot \vec{n} \cdot v =
+       \sum_{p}^{I_p} \mu_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+     \f]
+     \f[
+       E_{ij} = \vec{\phi_i} \cdot \nabla \vec{\phi_j}^T \cdot \vec{n} = |\mbox{in 2D}|
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^y}{\partial x} \\ \frac{\partial \phi_j^x}{\partial y} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial x} n_r \\ \sum_r^D \frac{\partial \phi_j^r}{\partial y} n_r \end{matrix} \right)
+              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial d} n_r
+     \f]
+
+     The penalty term is computed this way:
+     \f[
+       \int_F (\lambda + 2 \mu) u \cdot v =
+       \sum_p^{I_p} (\lambda_p + 2 \mu_p) w_p \sum_i^{N_{dofs}} \sum_j^{N_{dofs}} E_{ij}
+     \f]
+     \f[
+       E_{ij} = \vec{\phi_i} \cdot \vec{\phi_j} = |\mbox{in 2D}|
+              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \phi_j^x \\ \phi_j^y \end{matrix} \right)
+              = |\mbox{in any Dimension}| = \sum_d^D \phi_i^d \phi_j^d
+     \f]
+   */
 
    for (int p = 0; p < ir->GetNPoints(); ++p)
    {
@@ -2221,8 +2285,8 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       double vDshape[dim*ndofs][dim][dim];
       for (int i = 0; i < ndofs; ++i)
          for (int d = 0; d < dim; ++d)
-            for (int p = 0; p < dim; ++p)
-               vDshape[dim*i + d][d][p] = dshape(i, p);
+            for (int r = 0; r < dim; ++r)
+               vDshape[dim*i + d][d][r] = dshape(i, r);
 
       // using Jacobian matrix of transformation of coordinates
       const double detJ = Trans.Elem1->Weight();
@@ -2248,11 +2312,11 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       for (int i = 0; i < dim*ndofs; ++i)
          for (int j = 0; j < dim*ndofs; ++j)
             for (int d = 0; d < dim; ++d)
-               for (int p = 0; p < dim; ++p)
+               for (int r = 0; r < dim; ++r)
                   elmat(i, j) += vShape[i][d] *
-                     ( L * w * vDshape[j][p][p] * nh(d) +
-                       M * w * vDshape[j][d][p] * nh(p) +
-                       M * w * vDshape[j][p][d] * nh(p) );
+                     ( L * w * vDshape[j][r][p] * nh(d) +
+                       M * w * vDshape[j][d][r] * nh(r) +
+                       M * w * vDshape[j][r][d] * nh(r) );
 
       for (int i = 0; i < dim*ndofs; ++i)
          for (int j = 0; j < dim*ndofs; ++j)
@@ -2277,10 +2341,25 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    const int ndof2 = el2.GetDof();
    const int ndofs = ndof1 + ndof2;
 
-   // Initially elmat corresponds to the term:
-   // < { (lambda div(u) I + mu (grad(u) + (grad(u))^T)).n }, [v] >
-   // But eventually, it's going to be:
-   // elmat := -elmat + sigma*elmat^t + jmat
+   /**
+     Initially elmat corresponds to the term:
+     \f[
+       elmat = < { (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} }, [v] >
+     \f]
+     But eventually, it's going to be:
+     elmat := -elmat + sigma*elmat^t + kappa*jmat
+
+     For the boundary faces, the averages and jumps over the face F of the
+     element are defined this way:
+     - jump: [u] = u_F
+     - average {u} = u_F
+
+     Therefore, the computation of the elmat matrix follows this:
+     \f[
+       elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
+     \f]
+   */
+
 
    // For the interior faces, the averages and jumps over the face F separating
    // elements el1 and el2 are defined this way:
