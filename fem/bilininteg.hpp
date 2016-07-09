@@ -655,50 +655,67 @@ public:
 };
 
 /** Integrator for the DG form (taken from the PhD Thesis of Jonas De Basabe
-    High-Order Finite Element Methods for Seismic Wave Propagation, UT Austin,
+    High-Order Finite %Element Methods for Seismic Wave Propagation, UT Austin,
     2009, p. 23)
 
-    - < { tau(u) }, [v] > + sigma < { tau(v) }, [u] >
-    + kappa < { lambda + 2 mu } [u], [v] >,
+    \f[
+    - < { \tau(u) }, [v] > + sigma < { \tau(v) }, [u] >
+    + kappa < { \lambda + 2 \mu } [u], [v] >
+    \f]
 
-    where tau(u) is traction, and for isotropic medium it's:
-    tau_i(u) = stress_ij(u).n_j = lambda u_kk n_i + mu (u_ij + u_ji) n_j
+    where \f$ <u, v> = \int_{F} u \cdot v \f$, and \f$ F \f$ is a face which is
+    either a boundary face \f$ F_b \f$ of an element \f$ K \f$ or an interior
+    face \f$ F_i \f$ separating elements \f$ K_1 \f$ and \f$ K_2 \f$.
 
-    In other words:
-    - < { stress(u).n }, [v] > + sigma < { stress(v).n }, [u] >
-    + kappa < { lambda + 2 mu } [u], [v] >
+    In the bilinear form above \f$ \tau(u) \f$ is traction, and for isotropic
+    medium it's \f$ \tau(u) = \sigma(u) \cdot \vec{n} \f$, where \f$ \sigma(u) \f$
+    is stress, and \f$ \vec{n} \f$ is the unit normal vector w.r.t. to \f$ F \f$
+
+    In other words, we have
+    \f[
+    - < { \sigma(u) \cdot \vec{n} }, [v] > + sigma < { \sigma(v) \cdot \vec{n} }, [u] >
+    + kappa < { \lambda + 2 \mu } [u], [v] >
+    \f]
 
     We know that
-    stress(u) = lambda div(u) I + 2 mu strain(u)
-              = lambda div(u) I + 2 mu 1/2 (grad(u) + (grad(u))^T)
-              = lambda div(u) I + mu (grad(u) + (grad(u))^T)
+    \f[
+    \sigma(u) = \lambda \nabla \cdot u I + 2 \mu \varepsilon(u)
+              = \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla u^T)
+              = \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)
+    \f]
 
-    where I is identity matrix, lambda and mu are Lame coefficient (see
-    ElasticityIntegrator), u, v are the trial and test spaces, respectively.
-    The parameters sigma and kappa determine the DG method to be used (when this
-    integrator is added to the "broken" ElasticityIntegrator):
+    where \f$ I \f$ is identity matrix, \f$ \lambda \f$ and \f$ \mu \f$ are Lame
+    coefficients (see ElasticityIntegrator), \f$ u, v \f$ are the trial and test
+    spaces, respectively. The parameters \f$ sigma \f$ and \f$ kappa \f$
+    determine the DG method to be used (when this integrator is added to the
+    "broken" ElasticityIntegrator):
 
-    * sigma = 0, IIPG (Dawson, C., Sun, S., & Wheeler, M., 2004. Compatible
+    - sigma = 0, IIPG (Dawson, C., Sun, S., & Wheeler, M., 2004. Compatible
     algorithms for coupled flow and transport, Computer Methods in Applied
     Mechanics and Engineering, 193(23-26), 2565-2580.)
-    * sigma = -1, SIPG (Grote, M., Schneebeli, A., & Schotzau, D., 2006.
-    Discontinuous Galerkin Finite Element Method for the Wave Equation, SIAM
+
+    - sigma = -1, SIPG (Grote, M., Schneebeli, A., & Schotzau, D., 2006.
+    Discontinuous Galerkin Finite %Element Method for the Wave Equation, SIAM
     Journal on Numerical Analysis, 44(6), 2408-2431.)
-    * sigma = 1, NIPG (Riviere, B., Wheeler, M., & Girault, V., 2001. A Priori
-    Error Estimates for Finite Element Methods Based on Discontinuous
+
+    - sigma = 1, NIPG (Riviere, B., Wheeler, M., & Girault, V., 2001. A Priori
+    Error Estimates for Finite %Element Methods Based on Discontinuous
     Approximation Spaces for Elliptic Problems, SIAM Journal on Numerical
     Analysis, 39(3), 902-931.)
 
-    This is a 'Vector' integrator, i.e. defined for FE spaces
-    using multiple copies of a scalar FE space.
+    This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
+    copies of a scalar FE space.
  */
 class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
-   DGElasticityIntegrator(double s, double k)
-      : lambda(NULL), mu(NULL), sigma(s), kappa(k) { }
-   DGElasticityIntegrator(Coefficient &l, Coefficient &m, double s, double k)
-      : lambda(&l), mu(&m), sigma(s), kappa(k) { }
+   DGElasticityIntegrator(double sigma_, double kappa_)
+      : lambda(nullptr), mu(nullptr), sigma(sigma_), kappa(kappa_) {}
+
+   DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+                          double sigma_, double kappa_)
+      : lambda(&lambda_), mu(&mu_), sigma(sigma_), kappa(kappa_) {}
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
