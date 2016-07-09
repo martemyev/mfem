@@ -2159,7 +2159,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    /**
      Initially elmat corresponds to the term:
      \f[
-       elmat = < { (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} }, [v] >
+       elmat = < \{ (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \}, [v] >
      \f]
      But eventually, it's going to be:
      elmat := -elmat + sigma*elmat^t + kappa*jmat
@@ -2174,13 +2174,15 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
        elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
      \f]
    */
+
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
    /**
-     jmat corresponds to the term: \f$ < { \lambda + 2 \mu } [u], [v] > \f$,
+     jmat corresponds to the term: \f$ < \{ \lambda + 2 \mu \} [u], [v] > \f$,
      which in case of the boundary face becomes: \f$ \int_F (\lambda + 2 \mu) u \cdot v \f$
    */
+
    DenseMatrix jmat(dim*ndofs);
    jmat = 0.;
 
@@ -2255,9 +2257,9 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      \f]
    */
 
-   for (int p = 0; p < ir->GetNPoints(); ++p)
+   for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
-      const IntegrationPoint &ip = ir->IntPoint(p);
+      const IntegrationPoint &ip = ir->IntPoint(pind);
       IntegrationPoint eip; // integration point in the reference space
       Trans.Loc1.Transform(ip, eip);
       Trans.Face->SetIntPoint(&ip);
@@ -2314,7 +2316,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
             for (int d = 0; d < dim; ++d)
                for (int r = 0; r < dim; ++r)
                   elmat(i, j) += vShape[i][d] *
-                     ( L * w * vDshape[j][r][p] * nh(d) +
+                     ( L * w * vDshape[j][r][r] * nh(d) +
                        M * w * vDshape[j][d][r] * nh(r) +
                        M * w * vDshape[j][r][d] * nh(r) );
 
@@ -2344,39 +2346,44 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    /**
      Initially elmat corresponds to the term:
      \f[
-       elmat = < { (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} }, [v] >
+       elmat = < \{ (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \}, [v] >
      \f]
      But eventually, it's going to be:
      elmat := -elmat + sigma*elmat^t + kappa*jmat
 
-     For the boundary faces, the averages and jumps over the face F of the
-     element are defined this way:
-     - jump: [u] = u_F
-     - average {u} = u_F
+     For the interior faces, the averages and jumps over the face F separating
+     elements el1 and el2 are defined this way:
+     - jump: [u] = u1 - u2
+     - average: {u} = 0.5 (u1 + u2)
+
+     where indices 1 and 2 correspond to elements el1 and el2.
 
      Therefore, the computation of the elmat matrix follows this:
      \f[
-       elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
+     \begin{split}
+       elmat = \int_F & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n_1} \cdot v_1 \\
+                    + & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n_1} \cdot v_2 \\
+                    - & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n_2} \cdot v_1 \\
+                    - & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n_2} \cdot v_2 \\
+     \end{split}
      \f]
+
+     Each term of the integral above can be computed in the same way as in
+     AssembleBoundaryFaceMatrix - one only needs to take into account from which
+     element the basis functions come from - el1 or el2.
    */
 
-
-   // For the interior faces, the averages and jumps over the face F separating
-   // elements el1 and el2 are defined this way:
-   // [u] = u1 - u2       jump
-   // {u} = 0.5(u1 + u2)  average
-   // where indices 1 and 2 correspond to elements el1 and el2.
-   // Therefore, the computation of the elmat matrix follows this:
-   // elmat = \int_F 0.5 *(lambda1 div(u1) I + mu1 (grad(u1) + grad(u1)^T).n1.v1
-   //               +0.5 *(lambda1 div(u1) I + mu1 (grad(u1) + grad(u1)^T).n1.v2
-   //               -0.5 *(lambda2 div(u2) I + mu2 (grad(u2) + grad(u2)^T).n2.v1
-   //               -0.5 *(lambda2 div(u2) I + mu2 (grad(u2) + grad(u2)^T).n2.v2
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
-   // jmat corresponds to the term: kappa < { lambda + 2 mu } [u], [v] >,
-   // which in case of the interior face becomes:
-   // kappa \int_F 0.5 * (lambda1 + 2 mu1 + lambda2 * 2 mu2) (u1 v1 - u1 v2 - u2 v1 + u2 v2)
+   /**
+     jmat corresponds to the term: \f$ kappa < \{ \lambda + 2 \mu \} [u], [v] > \f$,
+     which in case of the interior face becomes:
+     \f$ kappa \int_F 0.5 * (\lambda_1 + 2 \mu_1 + \lambda_2 + 2 \mu_2) (u_1 \cdot v_1 - u_1 \cdot v_2 - u_2 \cdot v_1 + u_2 \cdot v_2) \f$
+
+     The computation of these terms is similar to the one used in AssembleBoundaryFaceMatrix.
+   */
+
    DenseMatrix jmat(dim*ndofs);
    jmat = 0.;
 
@@ -2388,9 +2395,9 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
-   for (int p = 0; p < ir->GetNPoints(); ++p)
+   for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
-      const IntegrationPoint &ip = ir->IntPoint(p);
+      const IntegrationPoint &ip = ir->IntPoint(pind);
       Trans.Face->SetIntPoint(&ip);
 
       IntegrationPoint eip1; // integration point in the reference space on the face of el1
@@ -2420,8 +2427,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       double vDshape1[dim*ndof1][dim][dim];
       for (int i = 0; i < ndof1; ++i)
          for (int d = 0; d < dim; ++d)
-            for (int p = 0; p < dim; ++p)
-               vDshape1[dim*i + d][d][p] = dshape1(i, p);
+            for (int r = 0; r < dim; ++r)
+               vDshape1[dim*i + d][d][r] = dshape1(i, r);
 
       IntegrationPoint eip2; // integration point in the reference space on the face of el2
       Trans.Loc2.Transform(ip, eip2);
@@ -2450,8 +2457,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       double vDshape2[dim*ndof2][dim][dim];
       for (int i = 0; i < ndof2; ++i)
          for (int d = 0; d < dim; ++d)
-            for (int p = 0; p < dim; ++p)
-               vDshape2[dim*i + d][d][p] = dshape2(i, p);
+            for (int r = 0; r < dim; ++r)
+               vDshape2[dim*i + d][d][r] = dshape2(i, r);
 
       // weight of the quadrature rule for numerical integration
       const double w = ip.weight;
@@ -2490,38 +2497,38 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       for (int i = 0; i < dim*ndof1; ++i)
          for (int j = 0; j < dim*ndof1; ++j)
             for (int d = 0; d < dim; ++d)
-               for (int p = 0; p < dim; ++p)
+               for (int r = 0; r < dim; ++r)
                   elmat(i, j) += vShape1[i][d] * 0.5 *
-                     ( L1 * w * vDshape1[j][p][p] * nh1(d) +
-                       M1 * w * vDshape1[j][d][p] * nh1(p) +
-                       M1 * w * vDshape1[j][p][d] * nh1(p) );
+                     ( L1 * w * vDshape1[j][r][r] * nh1(d) +
+                       M1 * w * vDshape1[j][d][r] * nh1(r) +
+                       M1 * w * vDshape1[j][r][d] * nh1(r) );
 
       for (int i = 0; i < dim*ndof1; ++i)
          for (int j = 0; j < dim*ndof2; ++j)
             for (int d = 0; d < dim; ++d)
-               for (int p = 0; p < dim; ++p)
+               for (int r = 0; r < dim; ++r)
                   elmat(i, dim*ndof1 + j) += vShape1[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][p][p] * nh2(d) +
-                       M2 * w * vDshape2[j][d][p] * nh2(p) +
-                       M2 * w * vDshape2[j][p][d] * nh2(p) );
+                     ( L2 * w * vDshape2[j][r][r] * nh2(d) +
+                       M2 * w * vDshape2[j][d][r] * nh2(r) +
+                       M2 * w * vDshape2[j][r][d] * nh2(r) );
 
       for (int i = 0; i < dim*ndof2; ++i)
          for (int j = 0; j < dim*ndof1; ++j)
             for (int d = 0; d < dim; ++d)
-               for (int p = 0; p < dim; ++p)
+               for (int r = 0; r < dim; ++r)
                   elmat(dim*ndof1 + i, j) -= vShape2[i][d] * 0.5 *
-                     ( L1 * w * vDshape1[j][p][p] * nh1(d) +
-                       M1 * w * vDshape1[j][d][p] * nh1(p) +
-                       M1 * w * vDshape1[j][p][d] * nh1(p) );
+                     ( L1 * w * vDshape1[j][r][r] * nh1(d) +
+                       M1 * w * vDshape1[j][d][r] * nh1(r) +
+                       M1 * w * vDshape1[j][r][d] * nh1(r) );
 
       for (int i = 0; i < dim*ndof2; ++i)
          for (int j = 0; j < dim*ndof2; ++j)
             for (int d = 0; d < dim; ++d)
-               for (int p = 0; p < dim; ++p)
+               for (int r = 0; r < dim; ++r)
                   elmat(dim*ndof1 + i, dim*ndof1 + j) -= vShape2[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][p][p] * nh2(d) +
-                       M2 * w * vDshape2[j][d][p] * nh2(p) +
-                       M2 * w * vDshape2[j][p][d] * nh2(p) );
+                     ( L2 * w * vDshape2[j][r][r] * nh2(d) +
+                       M2 * w * vDshape2[j][d][r] * nh2(r) +
+                       M2 * w * vDshape2[j][r][d] * nh2(r) );
 
       const double coef = (w/detJ1 + w/detJ2) * sqrt(nor * nor) *
                           0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);

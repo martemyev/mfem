@@ -659,29 +659,31 @@ public:
     2009, p. 23)
 
     \f[
-    - < { \tau(u) }, [v] > + sigma < { \tau(v) }, [u] >
-    + kappa < { \lambda + 2 \mu } [u], [v] >
+    - < \{ \tau(u) \}, [v] > + sigma < \{ \tau(v) \}, [u] >
+    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
     \f]
 
     where \f$ <u, v> = \int_{F} u \cdot v \f$, and \f$ F \f$ is a face which is
     either a boundary face \f$ F_b \f$ of an element \f$ K \f$ or an interior
     face \f$ F_i \f$ separating elements \f$ K_1 \f$ and \f$ K_2 \f$.
 
-    In the bilinear form above \f$ \tau(u) \f$ is traction, and for isotropic
-    medium it's \f$ \tau(u) = \sigma(u) \cdot \vec{n} \f$, where \f$ \sigma(u) \f$
+    In the bilinear form above \f$ \tau(u) \f$ is traction, and it's also
+    \f$ \tau(u) = \sigma(u) \cdot \vec{n} \f$, where \f$ \sigma(u) \f$
     is stress, and \f$ \vec{n} \f$ is the unit normal vector w.r.t. to \f$ F \f$
 
     In other words, we have
     \f[
-    - < { \sigma(u) \cdot \vec{n} }, [v] > + sigma < { \sigma(v) \cdot \vec{n} }, [u] >
-    + kappa < { \lambda + 2 \mu } [u], [v] >
+    - < \{ \sigma(u) \cdot \vec{n} \}, [v] > + sigma < \{ \sigma(v) \cdot \vec{n} \}, [u] >
+    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
     \f]
 
-    We know that
+    For isotropic media
     \f[
-    \sigma(u) = \lambda \nabla \cdot u I + 2 \mu \varepsilon(u)
-              = \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla u^T)
-              = \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)
+    \begin{split}
+    \sigma(u) &= \lambda \nabla \cdot u I + 2 \mu \varepsilon(u) \\
+              &= \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla u^T) \\
+              &= \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)
+    \end{split}
     \f]
 
     where \f$ I \f$ is identity matrix, \f$ \lambda \f$ and \f$ \mu \f$ are Lame
@@ -710,7 +712,7 @@ class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
    DGElasticityIntegrator(double sigma_, double kappa_)
-      : lambda(nullptr), mu(nullptr), sigma(sigma_), kappa(kappa_) {}
+      : lambda(NULL), mu(NULL), sigma(sigma_), kappa(kappa_) {}
 
    DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
                           double sigma_, double kappa_)
